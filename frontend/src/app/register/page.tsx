@@ -32,11 +32,11 @@ export default function RegisterPage() {
       const res = await api.post("/auth/register", {
         name,
         email,
-        phone,
+        phone: phone.replace(/\s+/g, ""),
         password,
         role,
       });
-      setAuth(res.data.user, res.data.token);
+      setAuth(res.data.user, res.data.token, res.data.refreshToken);
       toast.success("Registration successful!");
 
       if (role === "teacher") {
@@ -45,8 +45,17 @@ export default function RegisterPage() {
         router.push("/dashboard");
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || "Registration failed");
+      const error = err as { response?: { data?: { message?: string; errors?: { field: string; message: string }[] } }; request?: unknown };
+      const data = error.response?.data;
+      if (data?.errors?.length) {
+        data.errors.forEach((e) => toast.error(e.message));
+      } else if (data?.message) {
+        toast.error(data.message);
+      } else if (error.request && !error.response) {
+        toast.error("Cannot connect to server. Please make sure the backend is running.");
+      } else {
+        toast.error("Registration failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -54,23 +63,23 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-[calc(100vh-64px)] flex items-center justify-center py-12 px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8">
-        <h1 className="text-2xl font-bold text-gray-900 text-center mb-2">
+      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-2">
           Create Account
         </h1>
-        <p className="text-gray-500 text-center mb-8">
+        <p className="text-gray-500 dark:text-gray-400 text-center mb-8">
           Join Lingua Connect today
         </p>
 
         {/* Role Toggle */}
-        <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
+        <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1 mb-6">
           <button
             type="button"
             onClick={() => setRole("student")}
             className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
               role === "student"
-                ? "bg-white text-blue-600 shadow"
-                : "text-gray-500"
+                ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow"
+                : "text-gray-500 dark:text-gray-400"
             }`}
           >
             Student
@@ -80,8 +89,8 @@ export default function RegisterPage() {
             onClick={() => setRole("teacher")}
             className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
               role === "teacher"
-                ? "bg-white text-blue-600 shadow"
-                : "text-gray-500"
+                ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow"
+                : "text-gray-500 dark:text-gray-400"
             }`}
           >
             Teacher
@@ -90,7 +99,7 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Full Name
             </label>
             <input
@@ -98,13 +107,13 @@ export default function RegisterPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900"
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 dark:text-white dark:bg-gray-700"
               placeholder="John Doe"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Email
             </label>
             <input
@@ -112,13 +121,13 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900"
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 dark:text-white dark:bg-gray-700"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Phone Number
             </label>
             <input
@@ -126,13 +135,13 @@ export default function RegisterPage() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900"
-              placeholder="+91 98765 43210"
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 dark:text-white dark:bg-gray-700"
+              placeholder="+919876543210"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Password
             </label>
             <div className="relative">
@@ -142,8 +151,8 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 pr-10"
-                placeholder="Min 6 characters"
+                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 dark:text-white dark:bg-gray-700 pr-10"
+                placeholder="Min 6 characters, include a number"
               />
               <button
                 type="button"
@@ -168,7 +177,7 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
           Already have an account?{" "}
           <Link href="/login" className="text-blue-600 hover:underline font-medium">
             Login
