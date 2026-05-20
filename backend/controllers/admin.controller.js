@@ -207,7 +207,7 @@ exports.getStats = asyncHandler(async (req, res) => {
       totalUsers,
       totalTeachers,
       totalBookings,
-      totalRevenue: recentBookings.length ? (totalRevenue[0]?.total || 0) : 0,
+      totalRevenue: totalRevenue.length > 0 ? (totalRevenue[0]?.total || 0) : 0,
       userBreakdown: { students, teachers },
       bookingsByStatus: bookingsByStatus.reduce((acc, s) => {
         acc[s._id] = s.count;

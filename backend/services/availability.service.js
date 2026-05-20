@@ -57,9 +57,15 @@ const getAvailableSlots = async (teacherProfileId, date, slotMinutes = 60) => {
   const teacher = await Teacher.findById(teacherProfileId).lean();
   if (!teacher) throw new Error("Teacher not found");
 
+  // Check if the date is blocked (vacation mode)
+  const dateStr = targetDate.toISOString().slice(0, 10);
+  if (teacher.blockedDates?.includes(dateStr)) {
+    return { day: dayName, date: dateStr, slots: [] };
+  }
+
   const windows = teacher.availability.filter((a) => a.day === dayName);
   if (windows.length === 0) {
-    return { day: dayName, date: targetDate.toISOString().slice(0, 10), slots: [] };
+    return { day: dayName, date: dateStr, slots: [] };
   }
 
   // 2. Merge all windows into candidate slots
@@ -145,6 +151,10 @@ const isSlotAvailable = async (teacherProfileId, date, time, duration = 60) => {
   // 1. Check teacher availability window
   const teacher = await Teacher.findById(teacherProfileId).lean();
   if (!teacher) return false;
+
+  // Reject if date is blocked
+  const dateStr2 = targetDate.toISOString().slice(0, 10);
+  if (teacher.blockedDates?.includes(dateStr2)) return false;
 
   const windows = teacher.availability.filter((a) => a.day === dayName);
   const requestedStart = timeToMinutes(time);

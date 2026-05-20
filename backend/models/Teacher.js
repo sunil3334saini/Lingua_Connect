@@ -58,6 +58,10 @@ const teacherSchema = new mongoose.Schema(
       ],
       default: [],
     },
+    blockedDates: {
+      type: [String], // ISO date strings e.g. "2024-12-25"
+      default: [],
+    },
     profileImage: {
       type: String,
       default: "",

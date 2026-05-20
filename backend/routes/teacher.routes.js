@@ -9,6 +9,7 @@ const {
 } = require("../controllers/teacher.controller");
 const { uploadTeacherProfileImage } = require("../controllers/upload.controller");
 const { getSlots, getRange } = require("../controllers/availability.controller");
+const { getTeacherAnalytics } = require("../controllers/analytics.controller");
 const { verifyToken, isTeacher } = require("../middleware/auth.middleware");
 const { validate } = require("../middleware/validate");
 const { createUpload } = require("../middleware/upload");
@@ -19,6 +20,7 @@ const uploadProfileImage = createUpload({ folder: "lingua-connect/teacher-profil
 
 router.post("/profile", verifyToken, isTeacher, validate(createTeacherProfileRules), createProfile);
 router.get("/profile/me", verifyToken, isTeacher, getMyProfile);
+router.get("/analytics", verifyToken, isTeacher, getTeacherAnalytics);
 router.get("/all", getAllTeachers);
 
 // Availability calendar endpoints (public — before /:id catch-all)
