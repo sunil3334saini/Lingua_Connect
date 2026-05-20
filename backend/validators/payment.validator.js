@@ -32,8 +32,18 @@ const getPaymentStatusRules = [
   param("bookingId").isMongoId().withMessage("Invalid booking ID"),
 ];
 
+/** POST /api/payments/refund */
+const refundPaymentRules = [
+  body("bookingId")
+    .notEmpty()
+    .withMessage("Booking ID is required")
+    .isMongoId()
+    .withMessage("Invalid booking ID"),
+];
+
 module.exports = {
   createOrderRules,
   verifyPaymentRules,
   getPaymentStatusRules,
+  refundPaymentRules,
 };
