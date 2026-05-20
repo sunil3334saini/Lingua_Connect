@@ -52,8 +52,14 @@ const getBookingByIdRules = [
   param("id").isMongoId().withMessage("Invalid booking ID"),
 ];
 
+/** DELETE /api/bookings/:id */
+const cancelBookingRules = [
+  param("id").isMongoId().withMessage("Invalid booking ID"),
+];
+
 module.exports = {
   createBookingRules,
   updateBookingStatusRules,
   getBookingByIdRules,
+  cancelBookingRules,
 };

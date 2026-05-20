@@ -212,7 +212,7 @@ exports.deleteRecording = asyncHandler(async (req, res) => {
     await cloudinary.uploader.destroy(recording.publicId, { resource_type: "video" }).catch(() => {});
   }
 
-  recording.deleteOne();
+  session.recordings.pull({ _id: req.params.recordingId });
   await session.save();
 
   res.json({ success: true, message: "Recording deleted" });

@@ -50,6 +50,10 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    razorpayRefundId: {
+      type: String,
+      default: "",
+    },
     meetingRoomId: {
       type: String,
       default: "",
@@ -62,5 +66,13 @@ const bookingSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Indexes for common query patterns
+bookingSchema.index({ studentId: 1, sessionDate: -1 });
+bookingSchema.index({ teacherId: 1, sessionDate: -1 });
+bookingSchema.index({ status: 1 });
+bookingSchema.index({ paymentStatus: 1 });
+bookingSchema.index({ razorpayOrderId: 1 }, { sparse: true });
+bookingSchema.index({ sessionDate: 1, status: 1 }); // reminder cron queries
 
 module.exports = mongoose.model("Booking", bookingSchema);

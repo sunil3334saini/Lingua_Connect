@@ -122,6 +122,6 @@ const sessionHistorySchema = new mongoose.Schema(
 // ── Indexes ────────────────────────────────────────────────────
 sessionHistorySchema.index({ studentId: 1, scheduledDate: -1 });
 sessionHistorySchema.index({ teacherId: 1, scheduledDate: -1 });
-sessionHistorySchema.index({ bookingId: 1 }, { unique: true });
+// bookingId unique index is already created via `unique: true` in the schema field definition
 
 module.exports = mongoose.model("SessionHistory", sessionHistorySchema);

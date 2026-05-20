@@ -14,6 +14,10 @@ const AppError = require("../utils/AppError");
 exports.createBooking = asyncHandler(async (req, res) => {
   const { teacherProfileId, subject, sessionDate, sessionTime, duration } = req.body;
 
+  if (!req.user.isEmailVerified) {
+    throw new AppError("Please verify your email address before booking a session.", 403);
+  }
+
   const teacher = await Teacher.findById(teacherProfileId);
   if (!teacher) {
     throw new AppError("Teacher not found", 404);
@@ -46,56 +50,91 @@ exports.createBooking = asyncHandler(async (req, res) => {
 
   res.status(201).json({ success: true, booking });
 
-  // Send email notifications (fire-and-forget)
-  const teacherUser = await User.findById(teacher.userId).lean();
-  const dateStr = new Date(sessionDate).toLocaleDateString();
+  // Send email notifications (fire-and-forget — no await after response)
+  User.findById(teacher.userId).lean().then((teacherUser) => {
+    const dateStr = new Date(sessionDate).toLocaleDateString();
 
-  sendMail({
-    to: req.user.email,
-    ...emailTemplates.bookingConfirmation({
-      studentName: req.user.name,
-      teacherName: teacherUser?.name || "Teacher",
-      subject,
-      sessionDate: dateStr,
-      sessionTime,
-      duration: dur,
-      amount,
-    }),
-  }).catch(() => {});
-
-  if (teacherUser) {
     sendMail({
-      to: teacherUser.email,
-      ...emailTemplates.newBookingTeacher({
-        teacherName: teacherUser.name,
+      to: req.user.email,
+      ...emailTemplates.bookingConfirmation({
         studentName: req.user.name,
+        teacherName: teacherUser?.name || "Teacher",
         subject,
         sessionDate: dateStr,
         sessionTime,
+        duration: dur,
+        amount,
       }),
     }).catch(() => {});
-  }
+
+    if (teacherUser) {
+      sendMail({
+        to: teacherUser.email,
+        ...emailTemplates.newBookingTeacher({
+          teacherName: teacherUser.name,
+          studentName: req.user.name,
+          subject,
+          sessionDate: dateStr,
+          sessionTime,
+        }),
+      }).catch(() => {});
+    }
+  }).catch(() => {});
 });
 
 // @desc    Get student's bookings
 // @route   GET /api/bookings/student
 exports.getStudentBookings = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({ studentId: req.user._id })
-    .populate("teacherId", "name email")
-    .populate("teacherProfileId", "subjects price")
-    .sort({ sessionDate: -1 });
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
+  const { status } = req.query;
 
-  res.json({ success: true, bookings });
+  const filter = { studentId: req.user._id };
+  if (status) filter.status = status;
+
+  const [bookings, total] = await Promise.all([
+    Booking.find(filter)
+      .populate("teacherId", "name email")
+      .populate("teacherProfileId", "subjects price")
+      .sort({ sessionDate: -1 })
+      .skip(skip)
+      .limit(limit),
+    Booking.countDocuments(filter),
+  ]);
+
+  res.json({
+    success: true,
+    bookings,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+  });
 });
 
 // @desc    Get teacher's bookings
 // @route   GET /api/bookings/teacher
 exports.getTeacherBookings = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({ teacherId: req.user._id })
-    .populate("studentId", "name email")
-    .sort({ sessionDate: -1 });
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
+  const { status } = req.query;
 
-  res.json({ success: true, bookings });
+  const filter = { teacherId: req.user._id };
+  if (status) filter.status = status;
+
+  const [bookings, total] = await Promise.all([
+    Booking.find(filter)
+      .populate("studentId", "name email")
+      .sort({ sessionDate: -1 })
+      .skip(skip)
+      .limit(limit),
+    Booking.countDocuments(filter),
+  ]);
+
+  res.json({
+    success: true,
+    bookings,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+  });
 });
 
 // @desc    Update booking status
@@ -132,6 +171,47 @@ exports.updateBookingStatus = asyncHandler(async (req, res) => {
       ...emailTemplates.bookingStatusUpdate({
         recipientName: user.name,
         status,
+        subject: booking.subject,
+        sessionDate: dateStr,
+        sessionTime: booking.sessionTime,
+      }),
+    }).catch(() => {});
+  });
+});
+
+// @desc    Cancel a booking (student or teacher only, before session starts)
+// @route   DELETE /api/bookings/:id
+exports.cancelBooking = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id)
+    .populate("studentId", "name email")
+    .populate("teacherId", "name email");
+
+  if (!booking) throw new AppError("Booking not found", 404);
+
+  const userId = req.user._id.toString();
+  const isStudent = booking.studentId._id.toString() === userId;
+  const isTeacher = booking.teacherId._id.toString() === userId;
+
+  if (!isStudent && !isTeacher) throw new AppError("Not authorized", 403);
+
+  if (["completed", "cancelled"].includes(booking.status)) {
+    throw new AppError(`Booking is already ${booking.status}`, 400);
+  }
+
+  booking.status = "cancelled";
+  await booking.save();
+
+  res.json({ success: true, booking });
+
+  // Session history + emails (fire-and-forget)
+  sessionService.createFromBooking(booking._id).catch(() => {});
+  const dateStr = new Date(booking.sessionDate).toLocaleDateString();
+  [booking.studentId, booking.teacherId].forEach((u) => {
+    sendMail({
+      to: u.email,
+      ...emailTemplates.bookingStatusUpdate({
+        recipientName: u.name,
+        status: "cancelled",
         subject: booking.subject,
         sessionDate: dateStr,
         sessionTime: booking.sessionTime,
