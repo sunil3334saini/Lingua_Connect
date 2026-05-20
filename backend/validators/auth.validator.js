@@ -77,8 +77,33 @@ const updateProfileRules = [
     .withMessage("Please provide a valid phone number"),
 ];
 
+/** POST /api/auth/forgot-password */
+const forgotPasswordRules = [
+  body("email")
+    .trim()
+    .notEmpty()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Please provide a valid email")
+    .normalizeEmail(),
+];
+
+/** POST /api/auth/reset-password */
+const resetPasswordRules = [
+  body("token").notEmpty().withMessage("Reset token is required"),
+  body("password")
+    .notEmpty()
+    .withMessage("Password is required")
+    .isLength({ min: 6 })
+    .withMessage("Password must be at least 6 characters")
+    .matches(/\d/)
+    .withMessage("Password must contain at least one number"),
+];
+
 module.exports = {
   registerRules,
   loginRules,
   updateProfileRules,
+  forgotPasswordRules,
+  resetPasswordRules,
 };
