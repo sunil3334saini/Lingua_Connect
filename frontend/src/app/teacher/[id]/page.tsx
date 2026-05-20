@@ -14,6 +14,8 @@ import {
   MessageSquare,
   Video,
 } from "lucide-react";
+import Link from "next/link";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 
 export default function TeacherDetailPage() {
   const params = useParams();
@@ -89,9 +91,9 @@ export default function TeacherDetailPage() {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/3" />
-          <div className="h-4 bg-gray-200 rounded w-1/2" />
-          <div className="h-32 bg-gray-200 rounded" />
+          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+          <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded" />
         </div>
       </div>
     );
@@ -108,30 +110,30 @@ export default function TeacherDetailPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Teacher Header */}
-      <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6 mb-6">
         <div className="flex items-start gap-4">
-          <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-2xl flex-shrink-0">
+          <div className="h-16 w-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-2xl flex-shrink-0">
             {teacher.userId?.name?.charAt(0)?.toUpperCase() || "T"}
           </div>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {teacher.userId?.name}
             </h1>
             <div className="flex items-center gap-3 mt-1 flex-wrap">
               <span className="flex items-center gap-1 text-sm">
                 <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                <span className="font-medium text-gray-900">
+                <span className="font-medium text-gray-900 dark:text-white">
                   {teacher.rating.toFixed(1)}
                 </span>
                 <span className="text-gray-400">
                   ({teacher.totalReviews} reviews)
                 </span>
               </span>
-              <span className="flex items-center gap-1 text-sm text-gray-500">
+              <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
                 <Clock className="h-4 w-4" />
                 {teacher.experience} years experience
               </span>
-              <span className="flex items-center gap-1 text-sm font-semibold text-gray-900">
+              <span className="flex items-center gap-1 text-sm font-semibold text-gray-900 dark:text-white">
                 <DollarSign className="h-4 w-4 text-green-500" />₹
                 {teacher.price}/hr
               </span>
@@ -151,35 +153,48 @@ export default function TeacherDetailPage() {
 
             {/* Bio */}
             {teacher.bio && (
-              <p className="text-gray-600 mt-4 text-sm leading-relaxed">
+              <p className="text-gray-600 dark:text-gray-400 mt-4 text-sm leading-relaxed">
                 {teacher.bio}
               </p>
+            )}
+
+            {/* Message button — only for authenticated students */}
+            {isAuthenticated && user?.role === "student" && teacher.userId?.id && (
+              <div className="mt-4">
+                <Link
+                  href={`/messages/${teacher.userId.id}`}
+                  className="inline-flex items-center gap-2 text-sm font-medium border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 px-4 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Message Teacher
+                </Link>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Availability */}
+        {/* Availability Calendar */}
         {teacher.availability.length > 0 && (
-          <div className="mt-6 pt-4 border-t">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+          <div className="mt-6 pt-4 border-t dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1">
               <Calendar className="h-4 w-4" /> Availability
             </h3>
-            <div className="flex flex-wrap gap-2">
-              {teacher.availability.map((slot, i) => (
-                <span
-                  key={i}
-                  className="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-lg"
-                >
-                  {slot.day}: {slot.startTime} - {slot.endTime}
-                </span>
-              ))}
-            </div>
+            <AvailabilityCalendar
+              teacherProfileId={teacher._id}
+              slotMinutes={bookingDuration}
+              onSelectSlot={(date, time) => {
+                setBookingDate(date);
+                setBookingTime(time);
+              }}
+              selectedDate={bookingDate}
+              selectedTime={bookingTime}
+            />
           </div>
         )}
 
         {/* Action Buttons */}
         {user?.role === "student" && (
-          <div className="mt-6 pt-4 border-t flex gap-3">
+          <div className="mt-6 pt-4 border-t dark:border-gray-700 flex gap-3">
             <button
               onClick={() => setShowBooking(!showBooking)}
               className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2"
@@ -193,20 +208,20 @@ export default function TeacherDetailPage() {
 
       {/* Booking Form */}
       {showBooking && (
-        <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Book a Session
           </h2>
           <form onSubmit={handleBooking} className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Subject
                 </label>
                 <select
                   value={bookingSubject}
                   onChange={(e) => setBookingSubject(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none text-gray-900"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg outline-none text-gray-900 dark:text-white dark:bg-gray-700"
                 >
                   {teacher.subjects.map((sub) => (
                     <option key={sub} value={sub}>
@@ -216,7 +231,7 @@ export default function TeacherDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Duration
                 </label>
                 <select
@@ -224,7 +239,7 @@ export default function TeacherDetailPage() {
                   onChange={(e) =>
                     setBookingDuration(parseInt(e.target.value))
                   }
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none text-gray-900"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg outline-none text-gray-900 dark:text-white dark:bg-gray-700"
                 >
                   <option value={30}>30 min</option>
                   <option value={60}>1 hour</option>
@@ -233,35 +248,31 @@ export default function TeacherDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Selected Slot
                 </label>
-                <input
-                  type="date"
-                  value={bookingDate}
-                  onChange={(e) => setBookingDate(e.target.value)}
-                  required
-                  min={new Date().toISOString().split("T")[0]}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none text-gray-900"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Time
-                </label>
-                <input
-                  type="time"
-                  value={bookingTime}
-                  onChange={(e) => setBookingTime(e.target.value)}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none text-gray-900"
-                />
+                {bookingDate && bookingTime ? (
+                  <div className="flex items-center gap-2 px-4 py-2.5 border border-blue-200 bg-blue-50 rounded-lg text-blue-800 text-sm font-medium">
+                    <Calendar className="h-4 w-4" />
+                    {new Date(bookingDate + "T00:00:00").toLocaleDateString("en-IN", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                    <Clock className="h-4 w-4 ml-1" />
+                    {bookingTime}
+                  </div>
+                ) : (
+                  <p className="px-4 py-2.5 border border-gray-200 rounded-lg text-gray-400 text-sm">
+                    Pick a slot from the calendar above
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-sm text-gray-600 dark:text-gray-300">
               Estimated cost:{" "}
-              <span className="font-semibold text-gray-900">
+              <span className="font-semibold text-gray-900 dark:text-white">
                 ₹{teacher.price * (bookingDuration / 60)}
               </span>
             </div>
@@ -278,8 +289,8 @@ export default function TeacherDetailPage() {
       )}
 
       {/* Reviews */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
           Reviews ({teacher.totalReviews})
         </h2>
@@ -288,9 +299,9 @@ export default function TeacherDetailPage() {
         ) : (
           <div className="space-y-4">
             {reviews.map((review) => (
-              <div key={review._id} className="border-b last:border-0 pb-4 last:pb-0">
+              <div key={review._id} className="border-b dark:border-gray-700 last:border-0 pb-4 last:pb-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-gray-900 text-sm">
+                  <span className="font-medium text-gray-900 dark:text-white text-sm">
                     {review.studentId?.name || "Student"}
                   </span>
                   <div className="flex items-center">
@@ -310,7 +321,7 @@ export default function TeacherDetailPage() {
                   </span>
                 </div>
                 {review.comment && (
-                  <p className="text-gray-600 text-sm">{review.comment}</p>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">{review.comment}</p>
                 )}
               </div>
             ))}
