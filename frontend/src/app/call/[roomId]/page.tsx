@@ -14,14 +14,27 @@ import {
   MessageSquare,
   Send,
   X,
+  Monitor,
 } from "lucide-react";
 
-const ICE_SERVERS = {
-  iceServers: [
+function buildIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-  ],
-};
+  ];
+
+  const turnUrl = process.env.NEXT_PUBLIC_TURN_URL;
+  const turnUser = process.env.NEXT_PUBLIC_TURN_USERNAME;
+  const turnCred = process.env.NEXT_PUBLIC_TURN_CREDENTIAL;
+
+  if (turnUrl && turnUser && turnCred) {
+    servers.push({ urls: turnUrl, username: turnUser, credential: turnCred });
+  }
+
+  return servers;
+}
+
+const ICE_SERVERS: RTCConfiguration = { iceServers: buildIceServers() };
 
 export default function CallPage() {
   const params = useParams();
@@ -34,11 +47,17 @@ export default function CallPage() {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteSocketIdRef = useRef<string | null>(null);
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // State
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [roomFull, setRoomFull] = useState(false);
+  const [quality, setQuality] = useState<"good" | "poor" | "bad" | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState("");
@@ -47,6 +66,7 @@ export default function CallPage() {
   const socketRef = useRef<ReturnType<typeof connectSocket> | null>(null);
 
   const cleanup = useCallback(() => {
+    if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     peerConnectionRef.current?.close();
     socketRef.current?.emit("end_call", { roomId, userId: user?.id });
@@ -75,9 +95,11 @@ export default function CallPage() {
     startLocalStream();
 
     // Socket event handlers
-    socket.on("user_joined_call", async (data: { userId: string; userName: string }) => {
+
+    // Peer 1 path: peer 2 just joined — store their socketId and send offer
+    socket.on("user_joined_call", async (data: { userId: string; userName: string; socketId: string }) => {
       setRemoteUserName(data.userName);
-      // Create offer when someone joins
+      remoteSocketIdRef.current = data.socketId;
       if (peerConnectionRef.current) {
         const offer = await peerConnectionRef.current.createOffer();
         await peerConnectionRef.current.setLocalDescription(offer);
@@ -85,35 +107,44 @@ export default function CallPage() {
           roomId,
           offer,
           senderId: user.id,
+          targetSocketId: data.socketId,
         });
       }
     });
 
-    socket.on("webrtc_offer", async (data: { offer: RTCSessionDescriptionInit }) => {
+    // Peer 2 path: server confirms who the other peer is (no offer sent here)
+    socket.on("peer_info", (data: { userId: string; userName: string; socketId: string }) => {
+      setRemoteUserName(data.userName);
+      remoteSocketIdRef.current = data.socketId;
+    });
+
+    // Room is already full — show error and redirect
+    socket.on("room_full", () => {
+      setRoomFull(true);
+      setTimeout(() => router.push("/dashboard"), 3000);
+    });
+
+    socket.on("webrtc_offer", async (data: { offer: RTCSessionDescriptionInit; senderSocketId: string }) => {
+      remoteSocketIdRef.current = data.senderSocketId;
       if (!peerConnectionRef.current) await createPeerConnection();
-      await peerConnectionRef.current!.setRemoteDescription(
-        new RTCSessionDescription(data.offer)
-      );
+      await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(data.offer));
       const answer = await peerConnectionRef.current!.createAnswer();
       await peerConnectionRef.current!.setLocalDescription(answer);
       socket.emit("webrtc_answer", {
         roomId,
         answer,
         senderId: user.id,
+        targetSocketId: data.senderSocketId,
       });
     });
 
     socket.on("webrtc_answer", async (data: { answer: RTCSessionDescriptionInit }) => {
-      await peerConnectionRef.current?.setRemoteDescription(
-        new RTCSessionDescription(data.answer)
-      );
+      await peerConnectionRef.current?.setRemoteDescription(new RTCSessionDescription(data.answer));
     });
 
     socket.on("webrtc_ice_candidate", async (data: { candidate: RTCIceCandidateInit }) => {
       if (data.candidate) {
-        await peerConnectionRef.current?.addIceCandidate(
-          new RTCIceCandidate(data.candidate)
-        );
+        await peerConnectionRef.current?.addIceCandidate(new RTCIceCandidate(data.candidate));
       }
     });
 
@@ -165,13 +196,14 @@ export default function CallPage() {
       setIsConnected(true);
     };
 
-    // Handle ICE candidates
+    // Handle ICE candidates — route directly to the known peer
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
+      if (event.candidate && remoteSocketIdRef.current) {
         socketRef.current?.emit("webrtc_ice_candidate", {
           roomId,
           candidate: event.candidate,
           senderId: user?.id,
+          targetSocketId: remoteSocketIdRef.current,
         });
       }
     };
@@ -179,6 +211,24 @@ export default function CallPage() {
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") {
         setIsConnected(true);
+        // Poll RTCStats every 4 s for a simple packet-loss quality signal
+        statsIntervalRef.current = setInterval(async () => {
+          const stats = await pc.getStats();
+          stats.forEach((report) => {
+            if (report.type === "inbound-rtp" && report.kind === "video") {
+              const loss = report.packetsLost ?? 0;
+              const recv = report.packetsReceived ?? 1;
+              const lossRate = loss / (loss + recv);
+              if (lossRate < 0.02) setQuality("good");
+              else if (lossRate < 0.08) setQuality("poor");
+              else setQuality("bad");
+            }
+          });
+        }, 4000);
+      }
+      if (["disconnected", "failed", "closed"].includes(pc.connectionState)) {
+        if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+        setQuality(null);
       }
     };
 
@@ -211,12 +261,44 @@ export default function CallPage() {
     });
   };
 
+  const toggleScreenShare = async () => {
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+
+    if (isScreenSharing) {
+      // Restore camera track
+      screenTrackRef.current?.stop();
+      screenTrackRef.current = null;
+      const camTrack = localStreamRef.current?.getVideoTracks()[0];
+      if (camTrack) {
+        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+        sender?.replaceTrack(camTrack);
+        if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      setIsScreenSharing(false);
+    } else {
+      try {
+        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screen.getVideoTracks()[0];
+        screenTrackRef.current = screenTrack;
+        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+        sender?.replaceTrack(screenTrack);
+        if (localVideoRef.current) localVideoRef.current.srcObject = screen;
+        // Auto-stop when user clicks browser's "Stop sharing"
+        screenTrack.onended = () => toggleScreenShare();
+        setIsScreenSharing(true);
+      } catch {
+        // user cancelled or permission denied — silent
+      }
+    }
+  };
+
   const endCall = () => {
     cleanup();
     router.push("/dashboard");
   };
 
-  const sendMessage = (e: React.FormEvent) => {
+  const sendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!messageInput.trim()) return;
 
@@ -233,6 +315,17 @@ export default function CallPage() {
   };
 
   if (!isAuthenticated) return null;
+
+  if (roomFull) {
+    return (
+      <div className="h-[calc(100vh-64px)] flex items-center justify-center bg-gray-900">
+        <div className="text-center space-y-3">
+          <p className="text-white text-xl font-semibold">This call is full</p>
+          <p className="text-gray-400 text-sm">Only 2 participants are allowed. Redirecting…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-64px)] flex bg-gray-900">
@@ -258,6 +351,32 @@ export default function CallPage() {
             </div>
           )}
 
+          {/* Connection quality badge */}
+          {quality && (
+            <div className="absolute top-3 left-3">
+              <span
+                className={`text-xs font-medium px-2 py-1 rounded-full ${
+                  quality === "good"
+                    ? "bg-green-500/80 text-white"
+                    : quality === "poor"
+                    ? "bg-yellow-500/80 text-white"
+                    : "bg-red-500/80 text-white"
+                }`}
+              >
+                {quality === "good" ? "● Good" : quality === "poor" ? "● Poor" : "● Bad"} signal
+              </span>
+            </div>
+          )}
+
+          {/* Remote participant name */}
+          {isConnected && remoteUserName && (
+            <div className="absolute bottom-4 left-4">
+              <span className="bg-black/50 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm">
+                {remoteUserName}
+              </span>
+            </div>
+          )}
+
           {/* Local Video (PiP) */}
           <div className="absolute bottom-4 right-4 w-48 h-36 rounded-lg overflow-hidden shadow-lg border-2 border-gray-700">
             <video
@@ -272,6 +391,9 @@ export default function CallPage() {
                 <VideoOff className="h-8 w-8 text-gray-400" />
               </div>
             )}
+            <span className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded">
+              You
+            </span>
           </div>
         </div>
 
@@ -308,10 +430,22 @@ export default function CallPage() {
           </button>
 
           <button
+            onClick={toggleScreenShare}
+            title={isScreenSharing ? "Stop sharing" : "Share screen"}
+            className={`p-3 rounded-full ${
+              isScreenSharing
+                ? "bg-blue-600 hover:bg-blue-500"
+                : "bg-gray-600 hover:bg-gray-500"
+            } text-white transition`}
+          >
+            <Monitor className="h-5 w-5" />
+          </button>
+
+          <button
             onClick={endCall}
             className="p-3 rounded-full bg-red-600 hover:bg-red-500 text-white transition"
           >
-            <Phone className="h-5 w-5 rotate-[135deg]" />
+            <Phone className="h-5 w-5 rotate-135" />
           </button>
 
           <button
@@ -329,12 +463,12 @@ export default function CallPage() {
 
       {/* Chat Panel */}
       {showChat && (
-        <div className="w-80 bg-white flex flex-col border-l">
-          <div className="p-3 border-b flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 text-sm">Chat</h3>
+        <div className="w-80 bg-white dark:bg-gray-800 flex flex-col border-l dark:border-gray-700">
+          <div className="p-3 border-b dark:border-gray-700 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Chat</h3>
             <button
               onClick={() => setShowChat(false)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               <X className="h-4 w-4" />
             </button>
@@ -356,7 +490,7 @@ export default function CallPage() {
                   className={`inline-block px-3 py-1.5 rounded-lg text-sm ${
                     msg.senderId === user?.id
                       ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-900"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200"
                   }`}
                 >
                   {msg.message}
@@ -366,13 +500,13 @@ export default function CallPage() {
           </div>
 
           {/* Input */}
-          <form onSubmit={sendMessage} className="p-3 border-t flex gap-2">
+          <form onSubmit={sendMessage} className="p-3 border-t dark:border-gray-700 flex gap-2">
             <input
               type="text"
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder="Type a message..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none text-gray-900"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm outline-none text-gray-900 dark:text-white dark:bg-gray-700"
             />
             <button
               type="submit"
