@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/authStore";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { User, Mail, Phone } from "lucide-react";
+import ProfileImageUpload from "@/components/ProfileImageUpload";
 
 export default function ProfilePage() {
   const { user, isAuthenticated, setAuth, loadFromStorage } = useAuthStore();
@@ -30,6 +31,13 @@ export default function ProfilePage() {
     }
   }, [isAuthenticated, user]);
 
+  const handleImageChange = (url: string | null) => {
+    if (user) {
+      const token = localStorage.getItem("token") || "";
+      setAuth({ ...user, profileImage: url ?? undefined }, token);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -50,25 +58,25 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">My Profile</h1>
 
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        {/* Avatar */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-2xl">
-            {user?.name?.charAt(0)?.toUpperCase() || "U"}
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">{user?.name}</h2>
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">
-              {user?.role}
-            </span>
-          </div>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        {/* Profile image upload */}
+        <div className="flex flex-col items-center mb-6">
+          <ProfileImageUpload
+            currentImage={user?.profileImage}
+            fallbackText={user?.name?.charAt(0)?.toUpperCase() || "U"}
+            onImageChange={handleImageChange}
+          />
+          <h2 className="mt-3 text-lg font-semibold text-gray-900 dark:text-white">{user?.name}</h2>
+          <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full capitalize">
+            {user?.role}
+          </span>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
               <User className="h-3.5 w-3.5" /> Full Name
             </label>
             <input
@@ -76,24 +84,24 @@ export default function ProfilePage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white bg-white dark:bg-gray-700"
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
               <Mail className="h-3.5 w-3.5" /> Email
             </label>
             <input
               type="email"
               value={user?.email || ""}
               disabled
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 cursor-not-allowed"
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
               <Phone className="h-3.5 w-3.5" /> Phone
             </label>
             <input
@@ -101,7 +109,7 @@ export default function ProfilePage() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white bg-white dark:bg-gray-700"
             />
           </div>
 
