@@ -4,7 +4,7 @@ const asyncHandler = require("../utils/asyncHandler");
 // @desc    Search teachers by subject, rating, price, experience
 // @route   GET /api/search?subject=english&minRating=3&maxPrice=500&minExperience=2
 exports.searchTeachers = asyncHandler(async (req, res) => {
-  const { subject, minRating, maxPrice, minPrice, minExperience, sortBy, page, limit } = req.query;
+  const { subject, minRating, maxPrice, minPrice, minExperience, sortBy, page, limit, day } = req.query;
 
   const filter = {};
 
@@ -21,6 +21,9 @@ exports.searchTeachers = asyncHandler(async (req, res) => {
   }
   if (minExperience) {
     filter.experience = { $gte: parseInt(minExperience) };
+  }
+  if (day) {
+    filter["availability.day"] = day;
   }
 
   // Sorting

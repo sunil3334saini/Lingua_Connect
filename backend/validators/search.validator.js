@@ -29,6 +29,10 @@ const searchTeachersRules = [
     .optional()
     .isInt({ min: 0 })
     .withMessage("Minimum experience must be a non-negative integer"),
+  query("day")
+    .optional()
+    .isIn(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
+    .withMessage("day must be a valid day of the week"),
   query("sortBy")
     .optional()
     .isIn(["price_low", "price_high", "experience", "rating"])

@@ -56,19 +56,20 @@ exports.createReview = asyncHandler(async (req, res) => {
 
   res.status(201).json({ success: true, review });
 
-  // Notify teacher about the new review (fire-and-forget)
-  const teacherUser = await User.findById(booking.teacherId).lean();
-  if (teacherUser) {
-    sendMail({
-      to: teacherUser.email,
-      ...emailTemplates.newReviewNotification({
-        teacherName: teacherUser.name,
-        studentName: req.user.name,
-        rating,
-        comment,
-      }),
-    }).catch(() => {});
-  }
+  // Notify teacher about the new review (fire-and-forget — no await after response)
+  User.findById(booking.teacherId).lean().then((teacherUser) => {
+    if (teacherUser) {
+      sendMail({
+        to: teacherUser.email,
+        ...emailTemplates.newReviewNotification({
+          teacherName: teacherUser.name,
+          studentName: req.user.name,
+          rating,
+          comment,
+        }),
+      }).catch(() => {});
+    }
+  }).catch(() => {});
 });
 
 // @desc    Get reviews for a teacher
