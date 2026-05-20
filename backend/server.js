@@ -7,6 +7,8 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const { Server } = require("socket.io");
 const initSocket = require("./socket/socket");
+const { initReminderCron, initAutoCompleteCron } = require("./services/reminder.service");
+const { verifyTransporter } = require("./services/email.service");
 const { authLimiter, apiLimiter, uploadLimiter, paymentLimiter } = require("./middleware/rateLimiter");
 const logger = require("./config/logger");
 const errorHandler = require("./middleware/errorHandler");
@@ -26,8 +28,34 @@ const io = new Server(server, {
 });
 
 // ── Security middleware ────────────────────────────────────────
-app.use(helmet());                        // Security headers (XSS, clickjack, MIME sniff, etc.)
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true }));
+const clientOrigin = process.env.CLIENT_URL || "http://localhost:3000";
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:", "https://res.cloudinary.com"],
+        connectSrc: ["'self'", clientOrigin],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+        upgradeInsecureRequests: process.env.NODE_ENV === "production" ? [] : null,
+      },
+    },
+    crossOriginEmbedderPolicy: false, // allow Socket.io cross-origin handshake
+  })
+);
+app.use(cors({ origin: clientOrigin, credentials: true }));
+
+// Razorpay webhook needs raw body for HMAC verification — mount BEFORE express.json()
+app.use(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json" }),
+  require("./routes/webhook.routes")
+);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -60,6 +88,7 @@ app.use("/api/payments", require("./routes/payment.routes"));
 app.use("/api/reviews", require("./routes/review.routes"));
 app.use("/api/admin", require("./routes/admin.routes"));
 app.use("/api/sessions", require("./routes/session.routes"));
+app.use("/api/messages", require("./routes/message.routes"));
 
 // Health check
 app.get("/", (req, res) => {
@@ -67,7 +96,7 @@ app.get("/", (req, res) => {
 });
 
 // ── Catch-all for undefined routes ─────────────────────────────
-app.all("*", (req, res, next) => {
+app.all("/{*splat}", (req, res, next) => {
   next(new AppError(`Route ${req.originalUrl} not found`, 404));
 });
 
@@ -77,6 +106,13 @@ app.use(errorHandler);
 // Initialize Socket.io
 initSocket(io);
 
+// Start class reminder cron job
+initReminderCron(io);
+// Auto-complete sessions that have passed their end time
+initAutoCompleteCron();
+// Verify SMTP on startup
+verifyTransporter();
+
 // Connect to MongoDB and start server
 const PORT = process.env.PORT || 5000;
 
@@ -84,6 +120,14 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     logger.info("MongoDB connected");
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        logger.error(`Port ${PORT} is already in use. Please free the port or use a different one.`);
+      } else {
+        logger.error("Server error:", err);
+      }
+      process.exit(1);
+    });
     server.listen(PORT, () => {
       logger.info(`Server running on port ${PORT} [${process.env.NODE_ENV || "development"}]`);
     });

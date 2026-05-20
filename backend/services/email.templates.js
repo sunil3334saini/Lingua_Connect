@@ -128,6 +128,51 @@ const newReviewNotification = ({ teacherName, studentName, rating, comment }) =>
   ),
 });
 
+/** Email verification */
+const emailVerification = ({ name, verifyUrl }) => ({
+  subject: `Verify your email — ${APP_NAME}`,
+  html: layout(
+    "Verify Your Email 📧",
+    p(`Hi ${name},`) +
+      p("Thanks for signing up! Please verify your email address to get full access to all features.") +
+      btn(verifyUrl, "Verify Email") +
+      p("This link will expire in 24 hours.") +
+      p(`If you didn't create an account on ${APP_NAME}, you can safely ignore this email.`)
+  ),
+});
+
+/** Password reset */
+const passwordReset = ({ name, resetUrl }) => ({
+  subject: `Reset your password — ${APP_NAME}`,
+  html: layout(
+    "Reset Your Password 🔑",
+    p(`Hi ${name},`) +
+      p("We received a request to reset your password. Click the button below to choose a new one.") +
+      btn(resetUrl, "Reset Password") +
+      p("This link will expire in 1 hour.") +
+      p("If you didn't request a password reset, you can safely ignore this email.")
+  ),
+});
+
+/** Class reminder (sent before a session starts) */
+const classReminder = ({ name, subject, teacherName, studentName, sessionDate, sessionTime, role, joinUrl }) => ({
+  subject: `Reminder: ${subject} session starting soon`,
+  html: layout(
+    "Session Reminder ⏰",
+    p(`Hi ${name},`) +
+      p(
+        `This is a friendly reminder that your <strong>${subject}</strong> session is coming up soon:`
+      ) +
+      `<table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:8px;color:#6b7280;">${role === "teacher" ? "Student" : "Teacher"}</td><td style="padding:8px;font-weight:bold;">${role === "teacher" ? studentName : teacherName}</td></tr>
+        <tr><td style="padding:8px;color:#6b7280;">Date</td><td style="padding:8px;">${sessionDate}</td></tr>
+        <tr><td style="padding:8px;color:#6b7280;">Time</td><td style="padding:8px;">${sessionTime}</td></tr>
+      </table>` +
+      btn(joinUrl, "Join Session") +
+      p("Make sure your camera and microphone are working before the session starts.")
+  ),
+});
+
 module.exports = {
   welcome,
   bookingConfirmation,
@@ -135,4 +180,7 @@ module.exports = {
   bookingStatusUpdate,
   paymentConfirmation,
   newReviewNotification,
+  emailVerification,
+  passwordReset,
+  classReminder,
 };
