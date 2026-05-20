@@ -23,24 +23,24 @@
 - [x] Environment config (`.env.local`)
 
 ## 🔧 In Progress / TODO
-- [ ] Mobile responsive hamburger menu
-- [ ] Loading skeletons across all pages
-- [ ] Protected route wrapper component
-- [ ] Teacher availability calendar component
-- [ ] Session recording UI
-- [ ] Admin panel pages
-- [ ] Notification bell with real-time updates
-- [ ] Email verification flow
-- [ ] Password reset flow
-- [ ] Dark mode support
-- [ ] Image upload for profile pictures
-- [ ] SEO meta tags per page
-- [ ] Error boundary components
-- [ ] 404 page
-- [ ] Progressive Web App (PWA) setup
-- [ ] End-to-end tests (Cypress / Playwright)
-- [ ] Analytics dashboard for teachers
-- [ ] Class reminder notification
+- [x] Mobile responsive hamburger menu
+- [x] Loading skeletons across all pages
+- [x] Protected route wrapper component
+- [x] Teacher availability calendar component
+- [x] Session recording UI
+- [x] Admin panel pages
+- [x] Notification bell with real-time updates
+- [x] Email verification flow
+- [x] Password reset flow
+- [x] Dark mode support
+- [x] Image upload for profile pictures
+- [x] SEO meta tags per page
+- [x] Error boundary components
+- [x] 404 page
+- [x] Progressive Web App (PWA) setup
+- [x] End-to-end tests (Cypress / Playwright)
+- [x] Analytics dashboard for teachers
+- [x] Class reminder notification
 
 ## 📁 Frontend Structure
 ```
